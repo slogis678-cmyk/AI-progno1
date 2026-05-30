@@ -28,13 +28,17 @@ from external_helpers import (
     build_match_document,
 )
 
-API_FOOTBALL_HOST = "api-football-v1.p.rapidapi.com"
-API_FOOTBALL_BASE = f"https://{API_FOOTBALL_HOST}/v3"
+API_FOOTBALL_HOST = os.environ.get("API_FOOTBALL_HOST", "v3.football.api-sports.io")
+API_FOOTBALL_PROVIDER = os.environ.get("API_FOOTBALL_PROVIDER", "direct")  # "direct" or "rapidapi"
+API_FOOTBALL_BASE = f"https://{API_FOOTBALL_HOST}" if API_FOOTBALL_PROVIDER == "direct" else f"https://{API_FOOTBALL_HOST}/v3"
 ODDS_API_BASE = "https://api.the-odds-api.com/v4"
 
 
 def _af_headers() -> dict:
+    """Return headers for API-Football. Supports both direct (api-sports.io) and RapidAPI."""
     key = os.environ.get("API_FOOTBALL_KEY", "")
+    if API_FOOTBALL_PROVIDER == "direct":
+        return {"x-apisports-key": key}
     return {"x-rapidapi-key": key, "x-rapidapi-host": API_FOOTBALL_HOST}
 
 

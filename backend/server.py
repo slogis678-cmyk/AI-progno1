@@ -36,6 +36,11 @@ from auth import (
     hash_password,
     verify_password,
 )
+from advanced_data import (
+    check_api_football_status,
+    fetch_match_elo_pillar,
+)
+from poisson_predictions import predict_full_match
 from ai_analyzer import MODEL_REGISTRY, compute_edge, llm_analyze_match
 from demo_data import demo_matches
 from external_data import (
@@ -314,22 +319,47 @@ async def delete_match(match_id: str, user: dict = Depends(current_user)):
 
 @api.post("/matches/{match_id}/analyze")
 async def analyze_match(match_id: str, body: AnalyzeIn, user: dict = Depends(current_user)):
+    """Run advanced multi-pillar analysis on a match.
+    
+    Combines:
+    - 5 core pillars (tempo, odds_micro, reaction, h2h)
+    - Elo ratings from ClubElo (when available)
+    - LLM interpretation (Claude/GPT/Gemini)
+    - Poisson predictions (correct score, BTS, corners, halves)
+    """
     doc = await db.matches.find_one({"id": match_id, "owner_id": user["id"]}, {"_id": 0})
     if not doc:
         raise HTTPException(status_code=404, detail="Mecz nie znaleziony")
-    stats = compute_edge(doc)
+    
+    # Fetch advanced data (Elo ratings) - non-blocking, fallback if fails
+    elo_data = None
+    try:
+        elo_data = await fetch_match_elo_pillar(doc["home_team"], doc["away_team"])
+        logger.info("Elo pillar: home=%s away=%s diff=%s", 
+                   elo_data["home_elo"], elo_data["away_elo"], elo_data["elo_diff"])
+    except Exception as e:
+        logger.warning("Could not fetch Elo data: %s", e)
+    
+    # Run statistical engine with advanced pillars
+    stats = compute_edge(doc, elo_data=elo_data)
+    
+    # Generate Poisson predictions (correct score, BTS, corners, halves)
+    predictions = predict_full_match(doc, elo_data=elo_data)
+    
     model_key = body.model if body.model in MODEL_REGISTRY else user.get("preferred_model", "claude-sonnet-4-5-20250929")
     try:
         ai = await llm_analyze_match(doc, stats, model_key)
     except Exception as e:
         logger.exception("LLM analysis failed")
         raise HTTPException(status_code=502, detail=f"Błąd modelu AI: {e}")
+    
     record = {
         "id": str(uuid.uuid4()),
         "match_id": match_id,
         "owner_id": user["id"],
         "model": model_key,
         "stats": stats,
+        "predictions": predictions,
         "ai": ai,
         "created_at": _now_iso(),
     }
@@ -460,6 +490,12 @@ class ImportOddsApiIn(BaseModel):
 async def external_leagues():
     odds = await fetch_odds_api_sports()
     return {"api_football": LEAGUES, "odds_api": odds}
+
+
+@api.get("/external/api-football/status")
+async def api_football_status_endpoint(user: dict = Depends(current_user)):
+    """Check API-Football account status (requests remaining, plan)."""
+    return await check_api_football_status()
 
 
 async def _persist_imported(user_id: str, items: list[dict]) -> dict:

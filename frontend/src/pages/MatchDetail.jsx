@@ -7,6 +7,7 @@ import { ArrowLeft, Sparkle, Trash, ReceiptX, Clock } from '@phosphor-icons/reac
 import { api, formatApiError } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { PageHeader, EdgeBadge, PillarBar, StatTile } from '@/components/ui-extras';
+import AdvancedPredictions from '@/components/AdvancedPredictions';
 import { MATCH } from '@/constants/testIds';
 
 const MODELS = [
@@ -92,7 +93,9 @@ export default function MatchDetail() {
   }
 
   const es = match.edge_summary || {};
-  const pillars = es.pillars || {};
+  // Prefer pillars from latest analysis (has Elo etc), fallback to match.edge_summary
+  const analysisPillars = analysis?.stats?.pillars;
+  const pillars = analysisPillars || es.pillars || {};
   const oddsHist = (match.odds_history || []).map((p, i) => ({ idx: i, ...p }));
   const probData = es.model_prob
     ? [
@@ -261,6 +264,39 @@ export default function MatchDetail() {
         <FormCard title={`Forma · ${match.away_team}`} form={match.form_away || []} />
         <H2HCard h2h={match.h2h || []} />
       </section>
+
+      {/* Elo Ratings (when available) */}
+      {pillars.elo && (
+        <section className="px-8 pb-6" data-testid="elo-section">
+          <div className="overline mb-1">Rating Elo (ClubElo)</div>
+          <h3 className="font-display text-xl font-bold mb-4">Siła drużyn · Elo</h3>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-px bg-border">
+            <div className="bg-ink-800 p-5">
+              <div className="overline mb-2">Elo · {match.home_team}</div>
+              <div className="font-mono text-3xl font-bold text-edgeUp">{pillars.elo.home_elo}</div>
+            </div>
+            <div className="bg-ink-800 p-5">
+              <div className="overline mb-2">Elo · {match.away_team}</div>
+              <div className="font-mono text-3xl font-bold text-[#0066FF]">{pillars.elo.away_elo}</div>
+            </div>
+            <div className="bg-ink-800 p-5">
+              <div className="overline mb-2">Różnica Elo</div>
+              <div className={`font-mono text-3xl font-bold ${pillars.elo.elo_diff >= 0 ? 'text-edgeUp' : 'text-edgeDown'}`}>
+                {pillars.elo.elo_diff > 0 ? '+' : ''}{pillars.elo.elo_diff}
+              </div>
+            </div>
+            <div className="bg-ink-800 p-5">
+              <div className="overline mb-2">Prob. wygranej Elo (gosp.)</div>
+              <div className="font-mono text-3xl font-bold text-edgeWarn">
+                {Math.round((pillars.elo.elo_home_win_prob || 0) * 100)}%
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Advanced Predictions: score, BTS, corners, halves */}
+      <AdvancedPredictions predictions={analysis?.predictions} />
 
       {/* Analyses history */}
       <section className="px-8 pb-12">

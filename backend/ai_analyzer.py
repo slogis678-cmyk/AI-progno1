@@ -105,32 +105,71 @@ def historical_h2h_score(h2h: list) -> float:
     return (h + 0.5 * d) / total
 
 
-def compute_edge(match: dict) -> dict:
-    """Run the full statistical pipeline on a single match document."""
+def compute_edge(match: dict, elo_data: dict | None = None, 
+                xg_data: dict | None = None, injuries_data: dict | None = None) -> dict:
+    """Run the full statistical pipeline on a single match document.
+    
+    Combines up to 7 pillars (more = higher confidence):
+    Core (always): tempo, odds_micro, reaction_home, reaction_away, h2h
+    Advanced (when available): elo_rating, xg_dominance, squad_advantage
+    """
     odds = match["odds"]
     implied = implied_probabilities(odds["home"], odds["draw"], odds["away"])
 
+    # === CORE PILLARS (always computed) ===
     tempo = tempo_score(match.get("tempo", {}))
     micro = odds_microtrend_score(match.get("odds_history", []))
     rs_home = reaction_score(match.get("form_home", []))
     rs_away = reaction_score(match.get("form_away", []))
     h2h = historical_h2h_score(match.get("h2h", []))
 
-    # Blend signals -> raw probability for HOME win
+    # === ADVANCED PILLARS (when data available) ===
+    elo_signal = elo_data["elo_home_win_prob"] if elo_data else None
+    xg_signal = xg_data["home_xg_dominance"] if xg_data else None
+    squad_signal = injuries_data["home_squad_advantage"] if injuries_data else None
+
+    # === DYNAMIC WEIGHTING based on available pillars ===
+    # Base weights (5 core pillars sum to 1.0)
+    weights = {
+        "tempo": 0.22,
+        "odds_micro": 0.15,
+        "rs_home": 0.18,
+        "rs_away": 0.10,
+        "h2h": 0.15,
+        "elo": 0.10 if elo_signal is not None else 0,
+        "xg": 0.07 if xg_signal is not None else 0,
+        "squad": 0.03 if squad_signal is not None else 0,
+    }
+    # Renormalize to sum=1
+    weight_sum = sum(weights.values())
+    weights = {k: v / weight_sum for k, v in weights.items()}
+
+    # Build home raw probability with all available signals
     p_home_raw = (
-        0.28 * tempo
-        + 0.18 * (0.5 + 0.5 * micro["home_drift"])
-        + 0.22 * rs_home
-        + 0.12 * (1 - rs_away)
-        + 0.20 * h2h
+        weights["tempo"] * tempo
+        + weights["odds_micro"] * (0.5 + 0.5 * micro["home_drift"])
+        + weights["rs_home"] * rs_home
+        + weights["rs_away"] * (1 - rs_away)
+        + weights["h2h"] * h2h
     )
     p_away_raw = (
-        0.28 * (1 - tempo)
-        + 0.18 * (0.5 + 0.5 * micro["away_drift"])
-        + 0.22 * rs_away
-        + 0.12 * (1 - rs_home)
-        + 0.20 * (1 - h2h)
+        weights["tempo"] * (1 - tempo)
+        + weights["odds_micro"] * (0.5 + 0.5 * micro["away_drift"])
+        + weights["rs_home"] * (1 - rs_home)
+        + weights["rs_away"] * rs_away
+        + weights["h2h"] * (1 - h2h)
     )
+    # Advanced pillars contribution
+    if elo_signal is not None:
+        p_home_raw += weights["elo"] * elo_signal
+        p_away_raw += weights["elo"] * (1 - elo_signal)
+    if xg_signal is not None:
+        p_home_raw += weights["xg"] * xg_signal
+        p_away_raw += weights["xg"] * (1 - xg_signal)
+    if squad_signal is not None:
+        p_home_raw += weights["squad"] * squad_signal
+        p_away_raw += weights["squad"] * (1 - squad_signal)
+
     # Draw probability anchored on implied, adjusted by closeness of strengths
     closeness = 1 - abs(p_home_raw - p_away_raw)
     p_draw_raw = max(0.05, implied["draw"] * (0.6 + 0.4 * closeness))
@@ -145,19 +184,30 @@ def compute_edge(match: dict) -> dict:
     edges = {k: model_prob[k] - implied[k] for k in ("home", "draw", "away")}
     best_outcome = max(edges, key=edges.get)
 
-    # Confidence based on signal alignment (low variance of pillar values)
-    pillars = [tempo, 0.5 + 0.5 * micro["home_drift"], rs_home, h2h]
-    mu = sum(pillars) / len(pillars)
-    spread = sum((x - mu) ** 2 for x in pillars) / len(pillars)
-    confidence = max(0.0, min(1.0, 1 - math.sqrt(spread) * 1.6))
+    # Confidence based on signal alignment (low variance + more signals = higher conf)
+    signal_list = [tempo, 0.5 + 0.5 * micro["home_drift"], rs_home, h2h]
+    if elo_signal is not None:
+        signal_list.append(elo_signal)
+    if xg_signal is not None:
+        signal_list.append(xg_signal)
+    if squad_signal is not None:
+        signal_list.append(squad_signal)
+    
+    mu = sum(signal_list) / len(signal_list)
+    spread = sum((x - mu) ** 2 for x in signal_list) / len(signal_list)
+    # More pillars + low spread = higher confidence
+    pillar_count_bonus = min(0.15, (len(signal_list) - 4) * 0.05)
+    base_confidence = max(0.0, min(1.0, 1 - math.sqrt(spread) * 1.6))
+    confidence = max(0.0, min(0.95, base_confidence + pillar_count_bonus))
 
-    return {
+    result = {
         "implied": implied,
         "model_prob": model_prob,
         "edges": edges,
         "best_outcome": best_outcome,
         "best_edge": edges[best_outcome],
         "confidence": confidence,
+        "pillars_count": len(signal_list),
         "pillars": {
             "tempo": tempo,
             "odds_micro": micro,
@@ -166,6 +216,16 @@ def compute_edge(match: dict) -> dict:
             "h2h": h2h,
         },
     }
+    
+    # Add advanced pillar data if used
+    if elo_data:
+        result["pillars"]["elo"] = elo_data
+    if xg_data:
+        result["pillars"]["xg"] = xg_data
+    if injuries_data:
+        result["pillars"]["squad"] = injuries_data
+    
+    return result
 
 
 # ----------------------------- LLM analyzer --------------------------------
