@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Check, X, Trash } from '@phosphor-icons/react';
 import { api, formatApiError } from '@/lib/api';
 import { PageHeader, StatTile } from '@/components/ui-extras';
@@ -12,11 +12,19 @@ export default function BetTracker() {
   const [bets, setBets] = useState([]);
   const [err, setErr] = useState('');
 
-  const load = async () => {
-    const { data } = await api.get('/bets');
-    setBets(data);
-  };
-  useEffect(() => { load(); }, []);
+  const load = useCallback(async () => {
+    try {
+      const { data } = await api.get('/bets');
+      setBets(data);
+    } catch (error) {
+      console.error('Failed to load bets:', error);
+      setErr('Błąd ładowania zakładów');
+    }
+  }, []);
+  
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const settle = async (id, result) => {
     try {

@@ -20,6 +20,14 @@ from typing import Any
 
 import httpx
 
+from external_helpers import (
+    calculate_result_letter,
+    calculate_h2h_letter,
+    build_tempo_data,
+    aggregate_bookmaker_odds,
+    build_match_document,
+)
+
 API_FOOTBALL_HOST = "api-football-v1.p.rapidapi.com"
 API_FOOTBALL_BASE = f"https://{API_FOOTBALL_HOST}/v3"
 ODDS_API_BASE = "https://api.the-odds-api.com/v4"
@@ -44,21 +52,13 @@ LEAGUES = [
 
 
 def _result_letter_from(team_id: int, home_id: int, away_id: int, hg: int | None, ag: int | None) -> str | None:
-    if hg is None or ag is None:
-        return None
-    if hg == ag:
-        return "D"
-    if (team_id == home_id and hg > ag) or (team_id == away_id and ag > hg):
-        return "W"
-    return "L"
+    """Wrapper for backward compatibility."""
+    return calculate_result_letter(team_id, home_id, away_id, hg, ag)
 
 
 def _h2h_letter(home_id: int, hg: int | None, ag: int | None) -> str | None:
-    if hg is None or ag is None:
-        return None
-    if hg == ag:
-        return "D"
-    return "H" if hg > ag else "A"
+    """Wrapper for backward compatibility."""
+    return calculate_h2h_letter(home_id, hg, ag)
 
 
 async def _af_get(client: httpx.AsyncClient, path: str, params: dict) -> dict:

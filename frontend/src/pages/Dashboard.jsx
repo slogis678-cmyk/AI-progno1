@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowRight,
@@ -28,21 +28,28 @@ export default function Dashboard() {
   const [externalLeagues, setExternalLeagues] = useState({ api_football: [], odds_api: [] });
   const [importChoice, setImportChoice] = useState({ source: 'odds-api', value: '' });
   const [dismissed, setDismissed] = useState(() => {
-    try { return new Set(JSON.parse(localStorage.getItem(SEEN_ALERTS_KEY) || '[]')); } catch { return new Set(); }
+    try {
+      return new Set(JSON.parse(localStorage.getItem(SEEN_ALERTS_KEY) || '[]'));
+    } catch (err) {
+      console.warn('Could not read dismissed alerts from localStorage:', err);
+      return new Set();
+    }
   });
   const nav = useNavigate();
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const { data } = await api.get('/matches');
       setMatches(data);
+    } catch (err) {
+      console.error('Failed to load matches:', err);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
   const loadLeagues = async () => {
     try {

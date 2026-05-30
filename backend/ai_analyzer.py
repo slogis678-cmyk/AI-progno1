@@ -20,6 +20,13 @@ from typing import Any
 
 from emergentintegrations.llm.chat import LlmChat, UserMessage
 
+from ai_helpers import (
+    parse_json_from_llm_response,
+    build_llm_system_prompt,
+    build_match_payload,
+    validate_and_enrich_ai_response,
+)
+
 
 # --------------------------- Statistical engine -----------------------------
 
@@ -171,71 +178,38 @@ MODEL_REGISTRY = {
 
 
 def _parse_json_response(text: str) -> dict:
-    """Tolerantly extract a JSON object from a model reply."""
-    if not text:
-        return {}
-    text = text.strip()
-    # strip code fences if any
-    text = re.sub(r"^```(?:json)?", "", text).strip()
-    text = re.sub(r"```$", "", text).strip()
-    try:
-        return json.loads(text)
-    except Exception:
-        m = re.search(r"\{[\s\S]*\}", text)
-        if m:
-            try:
-                return json.loads(m.group(0))
-            except Exception:
-                return {"summary": text}
-        return {"summary": text}
+    """Wrapper for backward compatibility - uses ai_helpers."""
+    return parse_json_from_llm_response(text)
 
 
 async def llm_analyze_match(match: dict, stats: dict, model_key: str) -> dict:
-    """Ask the selected LLM to interpret the statistical signals and produce
-    a structured Polish analysis."""
+    """Ask the selected LLM to interpret statistical signals and produce
+    a structured Polish analysis.
+    
+    Refactored to use helper functions for clarity:
+    - build_llm_system_prompt: system message
+    - build_match_payload: structured data for the LLM
+    - parse_json_from_llm_response: tolerant JSON parsing
+    - validate_and_enrich_ai_response: ensure complete response
+    """
     api_key = os.environ["EMERGENT_LLM_KEY"]
-    provider, model = MODEL_REGISTRY.get(model_key, MODEL_REGISTRY["claude-sonnet-4-5-20250929"])
-
-    system_msg = (
-        "Jesteś analitykiem typującym mecze piłki nożnej. "
-        "Otrzymujesz dane statystyczne i wyniki silnika wykrywania przewagi. "
-        "Twoim zadaniem jest stworzyć krótką, profesjonalną analizę w języku polskim. "
-        "ZAWSZE odpowiadaj wyłącznie poprawnym JSON-em w schemacie: "
-        '{"verdict":"home|draw|away","confidence_pct":0-100,'
-        '"thesis":"krótka teza 1-2 zdania","tempo_insight":"...",'
-        '"odds_trend_insight":"...","reaction_insight":"...",'
-        '"historical_insight":"...","risk":"główne ryzyko zakładu"}'
+    provider, model = MODEL_REGISTRY.get(
+        model_key, 
+        MODEL_REGISTRY["claude-sonnet-4-5-20250929"]
     )
 
-    payload = {
-        "match": {
-            "home": match["home_team"],
-            "away": match["away_team"],
-            "league": match["league"],
-            "odds": match["odds"],
-            "tempo": match.get("tempo", {}),
-            "form_home": match.get("form_home", []),
-            "form_away": match.get("form_away", []),
-            "h2h_recent": match.get("h2h", []),
-            "odds_history": match.get("odds_history", []),
-        },
-        "statistical_engine": {
-            "implied_probabilities": stats["implied"],
-            "model_probabilities": stats["model_prob"],
-            "edges": stats["edges"],
-            "best_outcome": stats["best_outcome"],
-            "best_edge": stats["best_edge"],
-            "confidence": stats["confidence"],
-            "pillars": stats["pillars"],
-        },
-    }
+    # Build prompts and payload using helpers
+    system_msg = build_llm_system_prompt()
+    payload = build_match_payload(match, stats)
 
+    # Initialize LLM chat
     chat = LlmChat(
         api_key=api_key,
         session_id=f"edge-{uuid.uuid4()}",
         system_message=system_msg,
     ).with_model(provider, model)
 
+    # Send user message
     user_msg = UserMessage(
         text=(
             "Przeanalizuj poniższe dane meczu i wyniki silnika. "
@@ -243,15 +217,9 @@ async def llm_analyze_match(match: dict, stats: dict, model_key: str) -> dict:
             f"DANE:\n{json.dumps(payload, ensure_ascii=False, indent=2)}"
         )
     )
-
+    
     raw = await chat.send_message(user_msg)
-    parsed = _parse_json_response(raw if isinstance(raw, str) else str(raw))
-
-    # ensure required keys
-    parsed.setdefault("verdict", stats["best_outcome"])
-    parsed.setdefault("confidence_pct", round(stats["confidence"] * 100))
-    parsed.setdefault("thesis", "Analiza wygenerowana przez model.")
-    for k in ("tempo_insight", "odds_trend_insight", "reaction_insight", "historical_insight", "risk"):
-        parsed.setdefault(k, "")
-    parsed["model_used"] = model_key
-    return parsed
+    
+    # Parse and validate response
+    parsed = parse_json_from_llm_response(raw if isinstance(raw, str) else str(raw))
+    return validate_and_enrich_ai_response(parsed, stats, model_key)

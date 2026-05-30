@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, AreaChart, Area, CartesianGrid,
@@ -27,23 +27,29 @@ export default function MatchDetail() {
   const [err, setErr] = useState('');
   const [bet, setBet] = useState({ stake: 100, outcome: 'home', open: false });
 
-  const loadHistory = async () => {
+  const loadHistory = useCallback(async () => {
     try {
       const { data } = await api.get(`/matches/${id}/analyses`);
       setHistory(data);
-    } catch {
-      /* ignore */
+    } catch (error) {
+      console.error('Failed to load analysis history:', error);
+      // History is optional, don't block main content
     }
-  };
+  }, [id]);
 
-  const load = async () => {
-    const { data } = await api.get(`/matches/${id}`);
-    setMatch(data);
-    if (data.latest_analysis) setAnalysis(data.latest_analysis);
-    await loadHistory();
-  };
+  const load = useCallback(async () => {
+    try {
+      const { data } = await api.get(`/matches/${id}`);
+      setMatch(data);
+      if (data.latest_analysis) setAnalysis(data.latest_analysis);
+      await loadHistory();
+    } catch (error) {
+      console.error('Failed to load match:', error);
+      setErr(formatApiError(error?.response?.data?.detail) || 'Błąd ładowania meczu');
+    }
+  }, [id, loadHistory]);
 
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [id]);
+  useEffect(() => { load(); }, [load]);
 
   const runAnalysis = async () => {
     setErr('');

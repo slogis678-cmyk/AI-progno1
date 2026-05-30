@@ -51,6 +51,12 @@ from scheduler import (
     start_scheduler,
     stop_scheduler,
 )
+from stats_helpers import (
+    calculate_basic_stats,
+    calculate_league_stats,
+    calculate_profit_timeline,
+    calculate_ai_accuracy,
+)
 
 logger = logging.getLogger("edge-ai")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s | %(message)s")
@@ -403,60 +409,21 @@ async def delete_bet(bet_id: str, user: dict = Depends(current_user)):
 
 @api.get("/stats")
 async def stats(user: dict = Depends(current_user)):
+    """Calculate comprehensive betting statistics for user."""
     bets = await db.bets.find({"owner_id": user["id"]}, {"_id": 0}).to_list(2000)
-    total = len(bets)
-    settled = [b for b in bets if b["status"] in ("won", "lost")]
-    wins = sum(1 for b in settled if b["status"] == "won")
-    total_stake = sum(b["stake"] for b in settled)
-    total_profit = sum(b["profit"] for b in settled)
-    roi = (total_profit / total_stake * 100) if total_stake > 0 else 0.0
-    hit_rate = (wins / len(settled) * 100) if settled else 0.0
-
-    by_league: dict[str, dict] = {}
-    for b in settled:
-        lg = by_league.setdefault(b["league"], {"bets": 0, "wins": 0, "stake": 0.0, "profit": 0.0})
-        lg["bets"] += 1
-        lg["wins"] += 1 if b["status"] == "won" else 0
-        lg["stake"] += b["stake"]
-        lg["profit"] += b["profit"]
-    for lg in by_league.values():
-        lg["roi"] = (lg["profit"] / lg["stake"] * 100) if lg["stake"] > 0 else 0.0
-        lg["hit_rate"] = (lg["wins"] / lg["bets"] * 100) if lg["bets"] else 0.0
-
-    # cumulative profit timeline
-    sorted_bets = sorted(settled, key=lambda x: x["created_at"])
-    timeline = []
-    cum = 0.0
-    for b in sorted_bets:
-        cum += b["profit"]
-        timeline.append({"ts": b["created_at"], "cum_profit": round(cum, 2)})
-
-    # AI accuracy: analyses whose predicted verdict matches winning bet outcome
     analyses = await db.analyses.find({"owner_id": user["id"]}, {"_id": 0}).to_list(1000)
-    matched_bets = {b["match_id"]: b for b in settled if b["status"] in ("won", "lost")}
-    ai_correct = 0
-    ai_total = 0
-    for a in analyses:
-        b = matched_bets.get(a["match_id"])
-        if not b:
-            continue
-        ai_total += 1
-        if a.get("ai", {}).get("verdict") == b["outcome"] and b["status"] == "won":
-            ai_correct += 1
-    ai_acc = (ai_correct / ai_total * 100) if ai_total else 0.0
-
+    
+    # Calculate all metrics using helper functions
+    basic = calculate_basic_stats(bets)
+    by_league = calculate_league_stats(bets)
+    timeline = calculate_profit_timeline(bets)
+    ai_metrics = calculate_ai_accuracy(analyses, bets)
+    
     return {
-        "total_bets": total,
-        "settled_bets": len(settled),
-        "wins": wins,
-        "hit_rate": round(hit_rate, 2),
-        "total_stake": round(total_stake, 2),
-        "total_profit": round(total_profit, 2),
-        "roi": round(roi, 2),
+        **basic,
         "by_league": by_league,
         "timeline": timeline,
-        "ai_accuracy": round(ai_acc, 2),
-        "ai_total": ai_total,
+        **ai_metrics,
     }
 
 

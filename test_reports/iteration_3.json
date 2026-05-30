@@ -1,0 +1,44 @@
+{
+  "summary": "Backend regression after refactoring (stats_helpers.py, ai_helpers.py, external_helpers.py). Ran full pytest suite: 26/27 passed (96.3%). All critical flows verified: auth (login/register/me/preferences), models list, matches CRUD + edge_summary + pillars, AI analysis with all 3 models (Claude, GPT-5.2, Gemini), bet lifecycle (won/lost/void), stats (roi, hit_rate, ai_accuracy, by_league, timeline), seed-demo idempotency, external leagues (api_football + odds_api), Odds API import with dedup, API-Football graceful 502 fallback, analyses listing. Refactoring did NOT introduce regressions. One pre-existing assertion failure on Bayern match best_outcome - this is a test-data/algorithm-intent mismatch, not a refactoring bug.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "/api/matches (Bayern demo match)",
+        "issue": "test_bayern_match_home_edge asserts edge_summary.best_outcome == 'home', but algorithm correctly returns 'away'. With odds home=1.55/draw=4.50/away=5.20 the implied probs are home=0.609, away=0.181. Model produces home=0.611 (edge=+0.002) and away=0.248 (edge=+0.067), so 'away' is mathematically the best value bet. compute_edge uses absolute edge = model_prob - implied (ai_analyzer.py:145-146); for heavy home favorites, the away side has more headroom for positive edge. The test assertion conflicts with the algorithm's design (value-bet detection). Refactoring did NOT change this logic - issue is pre-existing test expectation vs. algorithm intent."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_edge_ai.py",
+    "/app/backend/tests/test_external.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Decide policy for test_bayern_match_home_edge: either (a) update test to assert 'away' (matches current value-bet algorithm), (b) update Bayern demo odds so that home actually has the largest positive edge (e.g., shorten away odds), or (c) change algorithm to weight relative edge differently. Recommend option (a) since the algorithm intentionally surfaces value bets, not favorites."
+  ],
+  "critical_code_review_comments": [
+    "Refactoring is clean: stats_helpers.py (calculate_basic_stats/league_stats/profit_timeline/ai_accuracy) properly extracted; server.stats() now slim and uses helpers. All 5 stats keys (roi, hit_rate, total_profit, by_league, timeline, ai_accuracy) present in response.",
+    "ai_helpers.py parse_json_from_llm_response + build_llm_system_prompt + build_match_payload + validate_and_enrich_ai_response correctly invoked from ai_analyzer.llm_analyze_match - verified by all 3 model parametrized tests returning correct verdict/thesis/confidence_pct/tempo_insight/odds_trend_insight/reaction_insight/historical_insight/risk fields.",
+    "external_helpers.py refactor preserves Odds API import dedup behavior (verified: 2nd import call returns inserted=0, skipped>=previous_inserted).",
+    "API-Football error path returns 502 with Polish 'Błąd API-Football:' prefix as designed; live RapidAPI subscription block gracefully handled.",
+    "compute_edge uses absolute edge metric (model_prob - implied); for very short-odds favorites the edge naturally collapses near 0. If product wants 'pick most likely outcome' instead of 'best value bet', algorithm + naming should be aligned.",
+    "Test fixtures correctly load ADMIN_EMAIL/ADMIN_PASSWORD from env (load_dotenv backend/.env + frontend/.env) - no hardcoded credentials remain in test files."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "96.3% (26/27 pytest)",
+    "frontend": "N/A (backend-only testing requested)"
+  },
+  "test_credentials": "admin@edgeai.pl / admin123 (from /app/memory/test_credentials.md, also in backend/.env)",
+  "seed_data_creation": "None. Tests use auto-seeded demo matches (6) and TEST_-prefixed transient bets/matches with cleanup in test bodies.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Pytest suite at /app/backend/tests/{test_edge_ai.py,test_external.py} is the canonical regression set. Runs in ~50s. The only failure (test_bayern_match_home_edge) is a test/algorithm semantics mismatch - decide whether algorithm intent is 'value bet' (current) or 'most likely outcome', then update test or demo odds accordingly. All other flows (auth/matches/AI analysis with 3 LLMs/bets/stats/external imports) are green and stable post-refactoring.",
+  "rca of the issue": "RCA for test_bayern_match_home_edge failure: Algorithm in /app/backend/ai_analyzer.py:compute_edge computes best_outcome = argmax(model_prob[k] - implied[k]). For Bayern vs Dortmund demo (odds 1.55/4.50/5.20), implied probs are 0.609/0.210/0.181. The pillar pipeline produces model probs ~0.611/0.141/0.248 -> edges ~0.002/-0.069/+0.067. Away has the largest positive edge (heaviest mispricing relative to model). Reproduction: GET /api/matches as admin, locate Bayern match, observe edge_summary.best_outcome == 'away'. Mitigation: update test assertion to 'away' OR adjust Bayern demo odds (e.g., home=1.85 so implied_home drops below model_home producing positive home edge > away)."
+}

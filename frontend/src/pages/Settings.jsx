@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Check } from '@phosphor-icons/react';
 import { api, formatApiError } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
@@ -12,9 +12,18 @@ export default function Settings() {
   const [saved, setSaved] = useState(false);
   const [err, setErr] = useState('');
 
-  useEffect(() => {
-    api.get('/models').then((r) => setModels(r.data.models));
+  const loadModels = useCallback(async () => {
+    try {
+      const r = await api.get('/models');
+      setModels(r.data.models);
+    } catch (error) {
+      console.error('Failed to load models:', error);
+    }
   }, []);
+  
+  useEffect(() => {
+    loadModels();
+  }, [loadModels]);
 
   const save = async () => {
     setErr('');

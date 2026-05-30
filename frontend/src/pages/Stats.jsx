@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
   BarChart, Bar,
@@ -9,9 +9,20 @@ import { STATS } from '@/constants/testIds';
 
 export default function StatsPage() {
   const [data, setData] = useState(null);
-  useEffect(() => {
-    api.get('/stats').then((r) => setData(r.data));
+  
+  const loadStats = useCallback(async () => {
+    try {
+      const r = await api.get('/stats');
+      setData(r.data);
+    } catch (err) {
+      console.error('Failed to load stats:', err);
+    }
   }, []);
+  
+  useEffect(() => {
+    loadStats();
+  }, [loadStats]);
+  
   if (!data) return <div className="px-8 py-8 overline animate-pulse-dot">Liczenie statystyk…</div>;
 
   const timeline = data.timeline.map((t, i) => ({

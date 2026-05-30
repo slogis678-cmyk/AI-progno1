@@ -5,11 +5,14 @@ import requests
 from pathlib import Path
 from dotenv import load_dotenv
 
+# Load backend .env for credentials
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+# Load frontend .env for public URL
 load_dotenv(Path(__file__).resolve().parents[2] / "frontend" / ".env")
-BASE_URL = os.environ["REACT_APP_BACKEND_URL"].rstrip("/")
 
-ADMIN_EMAIL = "admin@edgeai.pl"
-ADMIN_PASSWORD = "admin123"
+BASE_URL = os.environ["REACT_APP_BACKEND_URL"].rstrip("/")
+ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "admin@edgeai.pl")
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin123")
 
 
 @pytest.fixture(scope="module")
