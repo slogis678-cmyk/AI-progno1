@@ -122,8 +122,10 @@ def predict_bts(matrix: list) -> dict:
     }
 
 
-def predict_over_under(matrix: list, thresholds: list = [1.5, 2.5, 3.5]) -> dict:
+def predict_over_under(matrix: list, thresholds: list | None = None) -> dict:
     """Over/Under goal totals."""
+    if thresholds is None:
+        thresholds = [1.5, 2.5, 3.5]
     result = {}
     for threshold in thresholds:
         p_over = 0.0

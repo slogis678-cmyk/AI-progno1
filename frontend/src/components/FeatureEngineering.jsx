@@ -44,7 +44,7 @@ function FormString({ form }) {
     <span className="font-mono font-bold tracking-wider">
       {form.split('').map((r, i) => {
         const color = r === 'W' ? 'text-edgeUp' : r === 'L' ? 'text-edgeDown' : 'text-edgeWarn';
-        return <span key={i} className={color}>{r}</span>;
+        return <span key={`${i}-${r}`} className={color}>{r}</span>;
       })}
     </span>
   );

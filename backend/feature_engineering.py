@@ -30,6 +30,49 @@ def parse_score_string(score: str) -> tuple[int, int] | None:
     return None
 
 
+def _count_h2h_results(h2h: list) -> dict:
+    """Count W/D/L from H2H results list."""
+    home_wins = sum(1 for m in h2h if m.get("result") == "H")
+    draws = sum(1 for m in h2h if m.get("result") == "D")
+    away_wins = sum(1 for m in h2h if m.get("result") == "A")
+    return {"home_wins": home_wins, "draws": draws, "away_wins": away_wins}
+
+
+def _aggregate_h2h_scores(h2h: list) -> dict:
+    """Aggregate score-based stats: avg goals, BTTS rate, over 2.5 rate."""
+    btts_count = 0
+    over_2_5_count = 0
+    total_goals = 0
+    score_count = 0
+    
+    for m in h2h:
+        parsed = parse_score_string(m.get("score", ""))
+        if not parsed:
+            continue
+        h, a = parsed
+        total_goals += h + a
+        score_count += 1
+        if h >= 1 and a >= 1:
+            btts_count += 1
+        if (h + a) > 2.5:
+            over_2_5_count += 1
+    
+    if score_count == 0:
+        return {
+            "avg_goals": None,
+            "btts_rate": None,
+            "over_2_5_rate": None,
+            "score_count": 0,
+        }
+    
+    return {
+        "avg_goals": total_goals / score_count,
+        "btts_rate": btts_count / score_count,
+        "over_2_5_rate": over_2_5_count / score_count,
+        "score_count": score_count,
+    }
+
+
 def compute_h2h_features(h2h: list) -> dict:
     """Compute aggregate H2H features.
     
@@ -40,45 +83,21 @@ def compute_h2h_features(h2h: list) -> dict:
         return _empty_h2h_features()
     
     total = len(h2h)
-    home_wins = sum(1 for m in h2h if m.get("result") == "H")
-    draws = sum(1 for m in h2h if m.get("result") == "D")
-    away_wins = sum(1 for m in h2h if m.get("result") == "A")
-    
-    # Score-based features (when score available)
-    scores = []
-    btts_count = 0
-    over_2_5_count = 0
-    total_goals = 0
-    score_count = 0
-    
-    for m in h2h:
-        parsed = parse_score_string(m.get("score", ""))
-        if parsed:
-            h, a = parsed
-            scores.append((h, a))
-            total_goals += h + a
-            score_count += 1
-            if h >= 1 and a >= 1:
-                btts_count += 1
-            if (h + a) > 2.5:
-                over_2_5_count += 1
-    
-    avg_goals = total_goals / score_count if score_count > 0 else None
-    btts_rate = btts_count / score_count if score_count > 0 else None
-    over_2_5_rate = over_2_5_count / score_count if score_count > 0 else None
+    counts = _count_h2h_results(h2h)
+    scores = _aggregate_h2h_scores(h2h)
     
     return {
         "h2h_matches": total,
-        "h2h_home_wins": home_wins,
-        "h2h_draws": draws,
-        "h2h_away_wins": away_wins,
-        "h2h_home_win_rate": round(home_wins / total, 3) if total else 0,
-        "h2h_draw_rate": round(draws / total, 3) if total else 0,
-        "h2h_away_win_rate": round(away_wins / total, 3) if total else 0,
-        "h2h_avg_goals": round(avg_goals, 2) if avg_goals is not None else None,
-        "h2h_btts_rate": round(btts_rate, 3) if btts_rate is not None else None,
-        "h2h_over_2_5_rate": round(over_2_5_rate, 3) if over_2_5_rate is not None else None,
-        "h2h_scored_samples": score_count,
+        "h2h_home_wins": counts["home_wins"],
+        "h2h_draws": counts["draws"],
+        "h2h_away_wins": counts["away_wins"],
+        "h2h_home_win_rate": round(counts["home_wins"] / total, 3),
+        "h2h_draw_rate": round(counts["draws"] / total, 3),
+        "h2h_away_win_rate": round(counts["away_wins"] / total, 3),
+        "h2h_avg_goals": round(scores["avg_goals"], 2) if scores["avg_goals"] is not None else None,
+        "h2h_btts_rate": round(scores["btts_rate"], 3) if scores["btts_rate"] is not None else None,
+        "h2h_over_2_5_rate": round(scores["over_2_5_rate"], 3) if scores["over_2_5_rate"] is not None else None,
+        "h2h_scored_samples": scores["score_count"],
     }
 
 
@@ -135,15 +154,14 @@ def compute_odds_movement(odds_history: list) -> dict:
     draw_move = pct_change(open_draw, curr_draw)
     away_move = pct_change(open_away, curr_away)
     
-    # Identify market favorite based on movement
+    # Identify market favorite based on movement (default if no clear signal)
+    signal = "stable"
     if home_move < -3 and away_move > 0:
         signal = "money_to_home"
     elif away_move < -3 and home_move > 0:
         signal = "money_to_away"
     elif draw_move < -3:
         signal = "money_to_draw"
-    else:
-        signal = "stable"
     
     return {
         "odds_open": {"home": open_home, "draw": open_draw, "away": open_away},

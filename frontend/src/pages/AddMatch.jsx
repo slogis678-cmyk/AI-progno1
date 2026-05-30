@@ -171,7 +171,7 @@ function PickRow({ label, values, options, onChange, hint }) {
       <div className="flex gap-2">
         {values.map((v, i) => (
           <select
-            key={i}
+            key={`slot-${i}`}
             value={v}
             onChange={(e) => {
               const copy = [...values];

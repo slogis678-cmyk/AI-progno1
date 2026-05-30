@@ -421,7 +421,7 @@ function FormCard({ title, form }) {
         {form.length === 0 && <span className="text-ink-500 font-mono text-xs">brak danych</span>}
         {form.map((r, i) => {
           const c = r === 'W' ? 'bg-edgeUp text-black' : r === 'L' ? 'bg-edgeDown text-white' : 'bg-edgeWarn text-black';
-          return <span key={i} className={`w-7 h-7 flex items-center justify-center font-mono text-xs ${c}`}>{r}</span>;
+          return <span key={`${i}-${r}`} className={`w-7 h-7 flex items-center justify-center font-mono text-xs ${c}`}>{r}</span>;
         })}
       </div>
     </div>
@@ -437,7 +437,7 @@ function H2HCard({ h2h }) {
         {h2h.map((r, i) => {
           const v = r.result;
           const c = v === 'H' ? 'bg-edgeUp text-black' : v === 'A' ? 'bg-edgeDown text-white' : 'bg-edgeWarn text-black';
-          return <span key={i} className={`w-7 h-7 flex items-center justify-center font-mono text-xs ${c}`}>{v}</span>;
+          return <span key={`${i}-${v}`} className={`w-7 h-7 flex items-center justify-center font-mono text-xs ${c}`}>{v}</span>;
         })}
       </div>
     </div>

@@ -544,21 +544,23 @@ async def _persist_imported(user_id: str, items: list[dict]) -> dict:
 
 @api.post("/external/import/api-football")
 async def import_api_football(body: ImportApiFootballIn, user: dict = Depends(current_user)):
+    items: list[dict] = []
     try:
         items = await fetch_api_football_fixtures(body.league_id, body.days_ahead, body.season)
     except Exception as e:
         logger.exception("API-Football fetch failed")
-        raise HTTPException(status_code=502, detail=f"Błąd API-Football: {e}")
+        raise HTTPException(status_code=502, detail=f"Błąd API-Football: {e}") from e
     return await _persist_imported(user["id"], items)
 
 
 @api.post("/external/import/odds-api")
 async def import_odds_api(body: ImportOddsApiIn, user: dict = Depends(current_user)):
+    items: list[dict] = []
     try:
         items = await fetch_odds_api_events(body.sport_key)
     except Exception as e:
         logger.exception("Odds API fetch failed")
-        raise HTTPException(status_code=502, detail=f"Błąd The Odds API: {e}")
+        raise HTTPException(status_code=502, detail=f"Błąd The Odds API: {e}") from e
     return await _persist_imported(user["id"], items)
 
 
