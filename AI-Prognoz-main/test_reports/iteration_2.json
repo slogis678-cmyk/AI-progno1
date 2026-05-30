@@ -1,0 +1,48 @@
+{
+  "summary": "Iteration 2 testing complete for Edge AI. New external integrations (The Odds API live, API-Football subscription-gated), dashboard filters/alerts/import-modal, and match history view all verified. Backend 5/5 new tests pass. Frontend confirms all new testids render and import->dedup flow works end-to-end.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "MatchDetail",
+        "issues": [
+          "match-history-list testid only renders when history.length > 0; an empty-state placeholder div (without testid) renders otherwise. This is fine for UX, but tests must run >=1 analysis before asserting the testid is present."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_external.py",
+    "/app/backend/tests/test_edge_ai.py",
+    "/app/test_reports/pytest/iteration_2_external.xml",
+    "/app/test_reports/pytest/iteration_2_regression.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "external_data.fetch_odds_api_sports gracefully falls back to ODDS_SPORTS list when key missing/quota exhausted - good resilience.",
+    "_persist_imported correctly dedupes via (owner_id, external_id) lookup; verified by running import twice (10 inserted -> 10 skipped).",
+    "server.py /api/external/import/api-football wraps RuntimeError with HTTPException(502) + Polish prefix 'Błąd API-Football:' - error path is clean (verified live: 403 from RapidAPI -> 502 to client).",
+    "Dashboard import modal correctly renders both sources, league dropdown populates dynamically from /api/external/leagues, status text shows 'Pobrano N, zapisano M, pominięto duplikatów K'.",
+    "Alerts banner correctly shows 15 chips for edges >= 5%, 'Ukryj wszystkie' control present; chip click navigation and localStorage dismissal not directly automated but wired per code review.",
+    "Recharts wrappers in Stats.jsx and MatchDetail.jsx now use explicit inline width:100% height:NNN divs - no width(-1)/height(-1) console warnings captured during navigation.",
+    "match-history-list conditional render (only when history non-empty) is acceptable UX; testid still resolvable after running >=1 analysis."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_external.py (NEW)"
+  ],
+  "success_rate": {
+    "backend": "100% (5/5 new external tests + previous regressions stable)",
+    "frontend": "95% (all new testids verified; recharts warnings cleared)"
+  },
+  "test_credentials": "admin@edgeai.pl / admin123 - confirmed working.",
+  "seed_data_creation": "Imported 10 Brazil Série A matches via Odds API during test; second call skipped all 10 (dedup verified).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iteration 2 backend external endpoints verified. /api/external/leagues returns 8 static api_football + dynamic odds_api list (Brazil Série A available). /api/external/import/odds-api works live; /api/external/import/api-football returns 502 with Polish 'Błąd API-Football' (RapidAPI subscription block - NOT a bug). Dashboard test selectors confirmed: dashboard-import-button, dashboard-import-submit-button, dashboard-import-league-select, dashboard-filter-search, dashboard-league-filter, dashboard-min-edge-slider, dashboard-alerts-banner. MatchDetail: match-history-list (renders only when history exists). Source choice in import modal is clickable card (not a select); use text='The Odds API' or 'API-Football'. Counter 'X / Y mecz(y)' updates live with filters.",
+  "rca of the issue": "No new bugs found. The previously reported recharts width(-1) warning from iteration_1 appears resolved (no warnings captured in console during navigation across Dashboard, Stats). API-Football 502 is by design (RapidAPI subscription gating)."
+}

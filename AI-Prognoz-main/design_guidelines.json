@@ -1,0 +1,106 @@
+{
+  "theme": "dark",
+  "archetype": "4 (Swiss & High-Contrast - Dark Mode Variant)",
+  "emotional_tone": "Serious, authoritative, precise, data-rich, clinical.",
+  "typography": {
+    "heading_font": "Chivo",
+    "body_font": "IBM Plex Sans",
+    "mono_font": "IBM Plex Mono",
+    "rules": [
+      "Strictly no Inter, Roboto, or standard defaults.",
+      "Use IBM Plex Mono for all numerical data, odds, percentages, and grid coordinates.",
+      "Headlines (Chivo) must be tracking-tight.",
+      "Overlines/Labels must be uppercase, tiny (text-xs), wide spacing (tracking-[0.2em])."
+    ],
+    "scale": {
+      "h1": "text-4xl sm:text-5xl font-black tracking-tighter",
+      "h2": "text-2xl sm:text-3xl font-bold tracking-tight",
+      "h3": "text-xl sm:text-2xl font-semibold",
+      "h4": "text-lg sm:text-xl font-medium",
+      "body": "text-sm md:text-base",
+      "data_large": "text-3xl font-mono font-medium",
+      "data_small": "text-sm font-mono"
+    }
+  },
+  "colors": {
+    "background": {
+      "app": "#0a0a0a",
+      "surface": "#111111",
+      "surface_hover": "#1a1a1a"
+    },
+    "border": {
+      "default": "#222222",
+      "focus": "#0066FF"
+    },
+    "text": {
+      "primary": "#ffffff",
+      "secondary": "#a1a1aa",
+      "muted": "#71717a"
+    },
+    "accent": {
+      "primary": "#0066FF",
+      "primary_hover": "#3b82f6",
+      "success": "#00E676",
+      "danger": "#FF3D00",
+      "warning": "#FFEA00"
+    },
+    "rules": [
+      "No purple/teal gradients. Monochromatic base with strict functional accent colors.",
+      "Use Neon Green (#00E676) for positive Edge/Value Bet %. Use Neon Red (#FF3D00) for negative.",
+      "Use 1px borders everywhere. The UI should look like a modernized Bloomberg terminal."
+    ]
+  },
+  "layout": {
+    "spacing_system": "Dense Spacing Philosophy tailored for Data Density (Control Room Grid).",
+    "strategy": "MODE B: THE 'CONTROL ROOM' GRID. Dense, Data Correlation, Scanability.",
+    "rules": [
+      "Containers must use 1px solid borders (`border-border`) with sharp corners (`rounded-none` or max `rounded-sm`).",
+      "Use `grid-cols-1 md:grid-cols-3 lg:grid-cols-4` or `12-col` subgrids for dense data.",
+      "Padding inside widgets: `p-4` to `p-6`.",
+      "No drop shadows for data cards. Use flat surfaces."
+    ]
+  },
+  "components": {
+    "cards": "Go cardless or strict rectangular (rounded-none). No heavy shadows. Use `border-collapse` style for grids where possible.",
+    "buttons": "Sharp corners (`rounded-none` or `rounded-sm`). Solid primary colors for main actions. Ghost buttons for secondary actions.",
+    "tables": "Dense. Use Shadcn Table component. `py-2` for cells to allow fast scanning. Monospaced numbers.",
+    "charts": "Recharts. Monochromatic lines with primary or success color accents. Hide axis lines, use subtle grid lines (`#222222`).",
+    "forms": "Shadcn forms. `rounded-none` or `rounded-sm` inputs. Focus rings must be sharp and high contrast."
+  },
+  "motion": {
+    "rules": [
+      "Minimalist. Use micro-interactions for feedback.",
+      "No bouncy spring animations.",
+      "Hover states must be instantaneous or very fast (100ms) for a snappy, terminal feel."
+    ]
+  },
+  "icons": {
+    "library": "Phosphor Icons",
+    "installation": "yarn add @phosphor-icons/react",
+    "style": "Regular or bold. Crisp, technical look."
+  },
+  "media": {
+    "image_urls": [
+      {
+        "url": "https://static.prod-images.emergentagent.com/jobs/74ba0711-0455-4637-84d8-808b33b04f52/images/5692fbd735d39cc7c1935adb9baa63099038a208dbfa90c05dc789b15f373fa5.png",
+        "category": "login_background",
+        "description": "Abstract dark mode financial data background, flowing data streams, used for the split-screen login page background to give a technical, quant-trading feel."
+      }
+    ]
+  },
+  "accessibility": {
+    "rules": [
+      "All text must meet APCA or WCAG AA contrast.",
+      "Focus states must be visible (`focus:ring-2 focus:ring-blue-500`).",
+      "All interactive elements MUST include `data-testid` (e.g., `data-testid='login-submit-btn'`)."
+    ]
+  },
+  "instructions_to_main_agent": [
+    "Ensure UI is entirely in Polish as per the problem statement.",
+    "Set up Tailwind to use Chivo for sans/headings, IBM Plex Sans for body, and IBM Plex Mono for mono data points.",
+    "Implement the Dashboard with a strict grid layout, mimicking a modern trading terminal.",
+    "For the Match Deep Analysis view, ensure charts are prominent, and the AI reasoning uses a clean, readable text block layout with monospaced data callouts.",
+    "The Bet Tracker should be a dense, highly scannable data table.",
+    "Avoid typical SaaS dashboard tropes (soft shadows, heavy rounded borders, purple gradients). Stick strictly to the Dark Bloomberg/Fintech aesthetic."
+  ]
+}

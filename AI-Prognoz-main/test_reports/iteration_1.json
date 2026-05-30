@@ -1,0 +1,68 @@
+{
+  "summary": "Full E2E test of Edge AI (Polish football edge detector). Backend: 21/22 pytest passed including all 3 LLM models (Claude Sonnet 4.5, GPT-5.2, Gemini 3 Pro). Frontend: login, dashboard with 6 demo matches, match detail with full LLM analysis (verdict, thesis, 4 pillar insights, risk, probabilities, recharts), navigation, bets, stats, settings all work. Polish UI verified everywhere. Bloomberg terminal aesthetic looks clean.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "Statistical engine (compute_edge)",
+        "issue": "For Bayern vs Dortmund (heavy home favourite, odds 1.55), best_outcome resolves to 'away' because the away outcome has the largest model-vs-implied edge (market is most mispriced there). This is mathematically correct (edge != predicted winner), but the test request implied home should be best. Recommend documenting this distinction in UI tooltips."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "MatchDetail (recharts)",
+        "issue": "Console warning: 'The width(-1) and height(-1) of chart should be greater than 0' fires 4x on mount. Chart container lacks minHeight/minWidth, so ResponsiveContainer briefly receives -1 dimensions. Charts still render after re-measure, but it pollutes the console and may cause flicker.",
+        "selector": "ResponsiveContainer in /app/frontend/src/pages/MatchDetail.jsx (tempo + odds-history charts)",
+        "priority": "MEDIUM"
+      },
+      {
+        "component": "Routing",
+        "issue": "App routes dashboard to '/' but Login.jsx (likely) navigates to '/dashboard' after submit. Login still ends up on '/' (perhaps via fallback), but logs show 'No routes matched location \"/dashboard\"'. Should either add a /dashboard route alias or update Login redirect target to '/'.",
+        "selector": "Router config in /app/frontend/src/App.js + Login.jsx redirect",
+        "priority": "LOW"
+      },
+      {
+        "component": "AddMatch route",
+        "issue": "Sidebar 'Nowy mecz' navigates to '/add' (works). Direct visit to '/add-match' returns blank page (no route match). Consider adding '/add-match' alias for consistency with testid naming.",
+        "selector": "/app/frontend/src/App.js",
+        "priority": "LOW"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Dashboard / MatchDetail",
+        "issues": ["Dense terminal aesthetic implemented well. Edge badges color-coded green/red. Polish copy is consistent and professional throughout."]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_edge_ai.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Fix recharts ResponsiveContainer initial sizing in MatchDetail.jsx (wrap in fixed-height div or add minHeight) to remove width(-1)/height(-1) warning.",
+    "Align Login.jsx redirect with App.js route (use '/' or add explicit '/dashboard' route).",
+    "Consider adding '/add-match' route alias for UX consistency.",
+    "Optional: in UI, clarify that 'EDGE AI best outcome' = highest value-edge (model_prob - implied), not necessarily the predicted winner (Bayern example)."
+  ],
+  "critical_code_review_comments": [
+    "ai_analyzer.compute_edge: solid 4-pillar implementation, signal weighting clear (28% tempo, 18% odds-micro, 22% reaction_home, 12% reaction_away, 20% h2h). Confidence based on pillar variance is a nice touch.",
+    "server.py uses _strip_id helper + projection {_id:0} consistently — no Mongo ObjectId leakage detected.",
+    "auth.py uses bcrypt + JWT correctly; admin seeding is idempotent (only inserts if not exists). Note: existing admin password changes in .env are NOT reflected (would need update-on-mismatch logic if admin pw rotation is needed).",
+    "All endpoints properly guarded with current_user Depends; 401 returned for missing/invalid token.",
+    "LLM analyzer: JSON parsing is tolerant (strips code fences, regex fallback). Required keys always set via setdefault — robust.",
+    "Pydantic models validate input correctly (RegisterIn enforces min_length=6 password, EmailStr).",
+    "No file >700 lines; codebase is well-modularised (auth, ai_analyzer, demo_data, server)."
+  ],
+  "updated_files": ["/app/backend/tests/test_edge_ai.py"],
+  "success_rate": {"backend": "95% (21/22 - failure was test-assumption, not bug)", "frontend": "92%"},
+  "test_credentials": "admin@edgeai.pl / admin123 (auto-seeded). Confirmed working.",
+  "seed_data_creation": "Backend startup auto-seeds admin + 6 demo matches. Register endpoint also auto-seeds new user with 6 matches. Verified both paths.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Use /app/backend/tests/test_edge_ai.py for full regression. All 3 LLM models confirmed working via Emergent key. Frontend testids registry (visible in dashboard): nav-sidebar-logo, nav-link-{dashboard|add-match|bets|stats|settings}, logout-button, dashboard-match-row, dashboard-match-teams, dashboard-match-odds, dashboard-match-edge, match-analyze-button, settings-model-select, settings-save-button. Dashboard URL is '/' (NOT '/dashboard'). AddMatch URL is '/add' (NOT '/add-match'). Login button has no data-testid; use role='button' name='Zaloguj'.",
+  "rca of the issue": "No critical bugs. The recharts width(-1) warning is due to ResponsiveContainer reading container dims before layout settles; fix by giving the parent div an explicit min-height (e.g., h-64) or static height. The 'No routes matched /dashboard' warning is benign — Login redirect target doesn't match App.js route table; should be reconciled but doesn't break user flow because some other navigation lands on '/'."
+}
