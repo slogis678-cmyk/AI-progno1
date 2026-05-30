@@ -63,6 +63,24 @@ The `/api/matches/{id}/analyze` endpoint now returns `predictions` object with:
 
 ## ✅ Implemented (May 2026 - Latest)
 
+### Phase 1.5 - Feature Engineering (NEW)
+- ✅ **Feature Engineering module** (`/app/backend/feature_engineering.py`)
+  - `compute_h2h_features()` - H2H wins/draws/losses + rates + BTTS rate + avg goals + over 2.5 rate
+  - `compute_odds_movement()` - open/current odds, % movement, market signal detection
+  - `compute_form_features()` - form_5, points, wins, trend (improving/declining/stable)
+  - `features_summary_for_llm()` - compact features for LLM prompts
+- ✅ **Annabet client** (`/app/backend/annabet_client.py`)
+  - Implements user's spec for HTML scraping
+  - Detects SPA shell (annabet.com requires JS rendering)
+  - `try_fetch_annabet_data()` with graceful fallback
+- ✅ **New endpoint**: `GET /api/matches/{id}/features` - instant features without LLM
+- ✅ **LLM enriched**: prompt now includes engineered features summary
+- ✅ **Frontend component**: `FeatureEngineering.jsx` displays:
+  - H2H stats panel (wins/draws/losses + rates)
+  - Odds movement panel with market signal badge (KAPITAŁ NA GOSP./GOŚCIA/REMIS/STABILNY)
+  - Form panel with trend badges (↗ ROSNĄCY / ↘ MALEJĄCY / → STABILNY)
+  - W/D/L colored letters for form strings (green/red/yellow)
+
 ### Core (Phase 0)
 - ✅ JWT auth + bcrypt + admin seed
 - ✅ 6 demo meczów auto-seedowanych

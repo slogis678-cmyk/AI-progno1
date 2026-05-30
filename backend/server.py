@@ -41,6 +41,7 @@ from advanced_data import (
     fetch_match_elo_pillar,
 )
 from poisson_predictions import predict_full_match
+from feature_engineering import compute_all_features, features_summary_for_llm
 from ai_analyzer import MODEL_REGISTRY, compute_edge, llm_analyze_match
 from demo_data import demo_matches
 from external_data import (
@@ -340,6 +341,9 @@ async def analyze_match(match_id: str, body: AnalyzeIn, user: dict = Depends(cur
     except Exception as e:
         logger.warning("Could not fetch Elo data: %s", e)
     
+    # Compute engineered features (H2H stats, odds movement, form)
+    features = compute_all_features(doc)
+    
     # Run statistical engine with advanced pillars
     stats = compute_edge(doc, elo_data=elo_data)
     
@@ -348,7 +352,8 @@ async def analyze_match(match_id: str, body: AnalyzeIn, user: dict = Depends(cur
     
     model_key = body.model if body.model in MODEL_REGISTRY else user.get("preferred_model", "claude-sonnet-4-5-20250929")
     try:
-        ai = await llm_analyze_match(doc, stats, model_key)
+        # Pass engineered features summary to LLM for richer interpretation
+        ai = await llm_analyze_match(doc, stats, model_key, features_summary=features_summary_for_llm(features))
     except Exception as e:
         logger.exception("LLM analysis failed")
         raise HTTPException(status_code=502, detail=f"Błąd modelu AI: {e}")
@@ -360,6 +365,7 @@ async def analyze_match(match_id: str, body: AnalyzeIn, user: dict = Depends(cur
         "model": model_key,
         "stats": stats,
         "predictions": predictions,
+        "features": features,
         "ai": ai,
         "created_at": _now_iso(),
     }
@@ -496,6 +502,22 @@ async def external_leagues():
 async def api_football_status_endpoint(user: dict = Depends(current_user)):
     """Check API-Football account status (requests remaining, plan)."""
     return await check_api_football_status()
+
+
+@api.get("/matches/{match_id}/features")
+async def get_match_features(match_id: str, user: dict = Depends(current_user)):
+    """Get engineered features for a match (H2H stats, odds movement, form).
+    
+    Computed on-the-fly from match data - no LLM needed, instant response.
+    """
+    doc = await db.matches.find_one(
+        {"id": match_id, "owner_id": user["id"]},
+        {"_id": 0}
+    )
+    if not doc:
+        raise HTTPException(status_code=404, detail="Mecz nie znaleziony")
+    
+    return compute_all_features(doc)
 
 
 async def _persist_imported(user_id: str, items: list[dict]) -> dict:

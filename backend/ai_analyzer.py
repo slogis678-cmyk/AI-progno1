@@ -242,15 +242,16 @@ def _parse_json_response(text: str) -> dict:
     return parse_json_from_llm_response(text)
 
 
-async def llm_analyze_match(match: dict, stats: dict, model_key: str) -> dict:
+async def llm_analyze_match(match: dict, stats: dict, model_key: str, 
+                            features_summary: dict | None = None) -> dict:
     """Ask the selected LLM to interpret statistical signals and produce
     a structured Polish analysis.
     
-    Refactored to use helper functions for clarity:
-    - build_llm_system_prompt: system message
-    - build_match_payload: structured data for the LLM
-    - parse_json_from_llm_response: tolerant JSON parsing
-    - validate_and_enrich_ai_response: ensure complete response
+    Args:
+        match: match document
+        stats: compute_edge() result
+        model_key: which LLM to use
+        features_summary: optional engineered features (H2H stats, odds movement, form)
     """
     api_key = os.environ["EMERGENT_LLM_KEY"]
     provider, model = MODEL_REGISTRY.get(
@@ -261,6 +262,10 @@ async def llm_analyze_match(match: dict, stats: dict, model_key: str) -> dict:
     # Build prompts and payload using helpers
     system_msg = build_llm_system_prompt()
     payload = build_match_payload(match, stats)
+    
+    # Add engineered features to payload if available
+    if features_summary:
+        payload["engineered_features"] = features_summary
 
     # Initialize LLM chat
     chat = LlmChat(
@@ -273,7 +278,8 @@ async def llm_analyze_match(match: dict, stats: dict, model_key: str) -> dict:
     user_msg = UserMessage(
         text=(
             "Przeanalizuj poniższe dane meczu i wyniki silnika. "
-            "Zwróć WYŁĄCZNIE JSON zgodny ze schematem podanym w instrukcji systemowej.\n\n"
+            "Wykorzystaj engineered_features (H2H stats, odds movement, form trends) "
+            "do wzbogacenia analizy. Zwróć WYŁĄCZNIE JSON zgodny ze schematem.\n\n"
             f"DANE:\n{json.dumps(payload, ensure_ascii=False, indent=2)}"
         )
     )

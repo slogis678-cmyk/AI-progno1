@@ -8,6 +8,7 @@ import { api, formatApiError } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { PageHeader, EdgeBadge, PillarBar, StatTile } from '@/components/ui-extras';
 import AdvancedPredictions from '@/components/AdvancedPredictions';
+import FeatureEngineering from '@/components/FeatureEngineering';
 import { MATCH } from '@/constants/testIds';
 
 const MODELS = [
@@ -297,6 +298,13 @@ export default function MatchDetail() {
 
       {/* Advanced Predictions: score, BTS, corners, halves */}
       <AdvancedPredictions predictions={analysis?.predictions} />
+
+      {/* Feature Engineering: H2H stats, odds movement, form trends */}
+      <FeatureEngineering 
+        features={analysis?.features}
+        homeTeam={match.home_team}
+        awayTeam={match.away_team}
+      />
 
       {/* Analyses history */}
       <section className="px-8 pb-12">
